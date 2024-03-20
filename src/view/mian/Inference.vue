@@ -1,0 +1,581 @@
+<template>
+  <div class="container-fluid" style="
+  background: #2C2A38;
+  height: 100%;
+  color: white">
+    <div style="
+  height: 80px;
+  width: 100%;
+  background: #2C2A38;
+  padding: 15px;
+  border-bottom: 1px solid #554F4F;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 新增 */
+">
+      <div>
+        <h5>推理</h5>
+      </div>
+      <div>
+        <button style="color: #ff5f64;padding-left: 10px;padding-right: 10px" class="button" @click="inferenceStart">开始推理</button>
+      </div>
+    </div>
+
+    <div style="max-height: calc(100% - 80px);overflow: auto;">
+      <div style="padding: 20px; ">
+        <div>
+          <h6>模型选择</h6>
+          <div style="background-color: #606068;
+      color: white;
+      padding: 10px;
+      border-radius: 3px;">
+            <select v-model="type"  @change="getModelList">
+              <option>so-vits-svc-4.1</option>
+              <option>so-vits-svc-4.0</option>
+              <!--            <option>vits</option>-->
+              <!--            <option>Retrieval-based-Voice-Conversion</option>-->
+            </select>
+            <br>
+            权重:<select v-model="modelName" @change="getSpeakerList">
+            <option v-for="modelName in modelList" :key="modelName">
+              {{modelName}}
+            </option>
+          </select>
+            说话人:<select v-model="speakerName" @change="getFileList">
+            <option  v-for="speaker in speakerList" :key="speaker">
+              {{speaker}}
+            </option>
+          </select>
+          </div>
+          <div v-if="displayOptions" style="margin-top: 10px">
+            <h6>选择音频</h6>
+            <div style="background-color: #606068;
+      color: white;
+      padding: 10px;
+      border-radius: 3px;">
+              <select v-model=audioType>
+                <option value=1>手动选择</option>
+                <option value=2>网易云</option>
+              </select>
+              <input type="checkbox" @click="clickVocalAndBackgroundMusicSeparationOption" v-model="vocalAndBackgroundMusicSeparationOption">人声伴奏分离
+              <div v-if="audioType == 1"
+                   @dragover.prevent @drop="onDrop"
+                   style="width: calc(100%);  height: 150px; margin-top: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 5px dashed white;">
+                <p v-if="dropFileList.length === 0">将文件拖到此处</p>
+                <p v-if="dropFileList.length !== 0">已选择{{dropFileList.length}}个文件</p>
+                <img style="width: 50px; height: 50px;" src="bg-upload.svg">
+              </div>
+              <div v-if="audioType == 2">
+                <input v-model="keywords"><button @click="getNeteaseCloudMusicSearch">搜索</button>
+                <table v-if="songs && songs.length > 0">
+                  <tr>
+                    <th></th>
+                    <th>音乐名称</th>
+                    <th>作者</th>
+                  </tr>
+                  <tr v-for="song in songs" :key="song">
+                    <td><input type="checkbox"></td>
+                    <td>{{song.name}}</td>
+                    <td>
+                      <span v-for="(artist,index) in song.artists" :key="artist">
+                        {{artist.name}}
+                        <span v-if="song.artists.length-1 != index">,</span>
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div v-if="vocalAndBackgroundMusicSeparationOption" style="margin-top: 10px">
+            <h6>人声伴奏分离<input type="button" value="+" @click="sumUvr5ProcessTime"><input type="button" value="-" @click="minusUvr5ProcessTime"></h6>
+            <span v-for="index in uvr5ProcessTime" :key="index">
+              <div style="background-color: #606068;
+      color: white;
+      padding: 10px;
+      border-radius: 3px;">
+                {{index}}.
+                <select v-model="uvr5Parameters[index-1].uvr5WeightType" @change="onChangeUvr5WeightType(index-1)">
+                  <option>VR Architecture</option>
+                  <option>MDXNet</option>
+                </select>
+                <select v-model="uvr5Parameters[index-1].uvr5Weight">
+                  <option v-for="uvr5Weight in uvr5Parameters[index-1].uvr5WeightList" :key="uvr5Weight">{{uvr5Weight}}</option>
+                </select>
+                <span v-if="uvr5Parameters[index-1].uvr5Weight.startsWith('HP')">
+                  instrument
+                  <input v-model="instrumentAndOthersMusic[index-1].check" type="checkbox">
+                </span>
+                <span v-if="uvr5Parameters[index-1].uvr5Weight.startsWith('VR')">
+                  others
+                  <input v-model="instrumentAndOthersMusic[index-1].check" type="checkbox">
+                </span>
+                <div>
+                  <span>device</span>
+                  <select v-model="uvr5Parameters[index-1].uvr5Device">
+                    <option>cuda</option>
+                    <option>cpu</option>
+                  </select>
+                </div>
+                <div v-if="uvr5Parameters[index-1].uvr5Device == 'cuda'">
+                  <span>isHalf</span>
+                  <input type="checkbox" v-model="uvr5Parameters[index-1].uvr5isHalf">
+                </div>
+                <div>
+                  <span>agg</span>
+                  <input v-model="uvr5Parameters[index-1].uvr5Agg">
+                </div>
+                <div v-if="instrumentAndOthersMusic[index-1].check">
+                  合成音乐音量
+                  <input v-model="instrumentAndOthersMusic[index-1].volume">
+                </div>
+              </div>
+            </span>
+          </div>
+          <div v-if="displayOptions">
+            <h6 style="margin-top: 10px;">推理参数</h6>
+            <div style="background-color: #606068;
+      color: white;
+      padding: 10px;
+      border-radius: 3px;">
+              <div>
+                推理设备
+                <select v-model="device">
+                  <option value="0">自动选择</option>
+                  <option value="1">cpu</option>
+                  <option value="2">cuda</option>
+                </select>
+              </div>
+              <div>
+                <span>音高</span>
+                <input v-model="trans">
+              </div>
+              <div>
+                <span>音频强制切片</span>
+                <input value="0">
+              </div>
+              <div v-if="displayClusterModelOption">
+                聚类模型<input type="checkbox" v-model="displayClusterModelOptions">
+              </div>
+              <div v-if="displayClusterModelOptions">
+                <span>聚类模型/特征检索混合比例</span>
+                <input v-model="clusterInferRatio" type="number" min="0" max="1">
+              </div>
+              <div v-if="displayDiffusionModelOption">
+                浅层扩散模型<input type="checkbox" v-model="displayDiffusionModelOptions">
+              </div>
+              <div v-if="displayDiffusionModelOptions">
+                <span>浅扩散步数</span>
+                <input v-model="k_step">
+              </div>
+              <div>
+                <span>自动f0预测</span>
+                <input v-model="autoPredictF0" type="checkbox">
+              </div>
+              <div v-if="autoPredictF0">
+                <div>
+                  <span>f0预测器</span>
+                  <select v-model="f0Predictor">
+                    <option>pm</option>
+                    <option>dio</option>
+                    <option>harvest</option>
+                    <option>crepe</option>
+                  </select>
+                </div>
+                <div>
+                  <span>F0过滤阈值</span>
+                  <input v-model="f0FilterThreshold">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="dropFileList.length>0" style="margin-top: 10px">
+          <h6>结果:{{resultList.length}}/{{dropFileList.length}}</h6>
+          <div style="background-color: #606068;
+      color: white;
+      padding: 10px;
+      border-radius: 3px;">
+            <audio v-for="request in resultList" :key="request" style="width: 100%" controls :src="getAudioSrc(request)"></audio>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<script>
+import {ipcRenderer, remote} from "electron";
+
+const fs = remote.require('fs');
+
+export default {
+  // eslint-disable-next-line vue/multi-word-component-names
+  name: "Inference",
+  data:function () {
+    return {
+      inference: false,
+      resultList: [],
+      vocalAndBackgroundMusicSeparationOption: false,
+      displayOptions : false,
+      displayClusterModelOption: false,
+      displayClusterModelOptions: false,
+      displayDiffusionModelOption: false,
+      displayDiffusionModelOptions: false,
+      audioType : 1,
+      type : "so-vits-svc-4.1",
+      modelList:[],
+      modelName: "",
+      speakerList: [],
+      speakerName: "",
+      config: "",
+      device: 0,
+      trans: 0,
+      clusterInferRatio: 0.5,
+      k_step: 100,
+      autoPredictF0: false,
+      f0Predictor: "pm",
+      f0FilterThreshold: 0.05,
+      dropFileList: [],
+      keywords:"",
+      songs:{},
+      uvr5Parameters:[
+        {
+          uvr5WeightType:"VR Architecture",
+          uvr5WeightList:{},
+          uvr5Device:"cuda",
+          uvr5isHalf:true,
+          uvr5Agg:10,
+          uvr5Weight:"",
+        },
+      ],
+      uvr5VocalList:{},
+      instrumentAndOthersMusic:[{volume:0.8}],
+      uvr5ProcessTime : 1,
+      outputNumber: 0,
+    }
+  },
+  created: function() {
+    ipcRenderer.send('get-config');
+    const getConfigListener = (event, config) => {
+      this.config = config;
+      this.getModelList();
+      ipcRenderer.off('config', getConfigListener);
+      const audioMixerResultListener = (event, outPath) => {
+        this.resultList.push(outPath);
+      };
+      ipcRenderer.on('audio-mixer-result', audioMixerResultListener);
+    };
+    ipcRenderer.on('config', getConfigListener);
+
+  },
+  methods: {
+    sumUvr5ProcessTime(){
+      this.uvr5Parameters = this.uvr5Parameters.concat({
+        uvr5WeightType:"VR Architecture",
+        uvr5WeightList:{},
+        uvr5Device:"cuda",
+        uvr5isHalf:true,
+        uvr5Agg:10,
+        uvr5Weight:"",
+      });
+      this.uvr5ProcessTime = this.uvr5ProcessTime+1;
+      this.onChangeUvr5WeightType(this.uvr5ProcessTime-1);
+      this.instrumentAndOthersMusic.push({volume:0.8})
+    },
+    minusUvr5ProcessTime(){
+      if (this.uvr5ProcessTime !== 1){
+        this.uvr5ProcessTime = this.uvr5ProcessTime-1;
+        this.uvr5Parameters = this.uvr5Parameters.filter((item, index) => index !== this.uvr5ProcessTime);
+        this.instrumentAndOthersMusic.pop();
+      }
+    },
+    clickVocalAndBackgroundMusicSeparationOption(e){
+      if (e.target.checked) {
+        this.onChangeUvr5WeightType(0);
+      }
+    },
+    onChangeUvr5WeightType(index){
+      if (this.uvr5Parameters[index].uvr5WeightType == "VR Architecture") {
+        const getFilesAndFoldersNamesListener = (event, items) => {
+          this.uvr5Parameters[index].uvr5WeightList = items;
+
+          ipcRenderer.off("files-and-folders-names", getFilesAndFoldersNamesListener);
+        };
+        ipcRenderer.send('get-files-and-folders-names',this.config.workingDirectory + '/program/uvr5-cli/assets/uvr5_weights/', 'file');
+        ipcRenderer.on("files-and-folders-names", getFilesAndFoldersNamesListener);
+      }else {
+        this.uvr5Parameters[index].uvr5WeightList= ["还没做"];
+      }
+    },
+    getNeteaseCloudMusicSearch(){
+      // getSearch({
+      //   keywords: this.keywords,
+      //   limit: 5
+      // }).then(res => {
+      //   this.songs = JSON.parse(JSON.stringify(res.data.result.songs))
+      // })
+    },
+    getAudioSrc(filePath) {
+      // Use the Node.js fs module to read the file
+      try {
+        const data = fs.readFileSync(filePath);
+        const blob = new Blob([data], { type: 'audio/flac' });
+        return URL.createObjectURL(blob);
+      } catch (error) {
+        console.error('Error loading audio:', error);
+        return '';
+      }
+    },
+    onDrop(event) {
+      event.preventDefault();
+      this.dropFileList = event.dataTransfer.files;
+    },
+    resetOption:function () {
+      this.displayClusterModelOption = false;
+      this.displayClusterModelOptions = false;
+      this.displayDiffusionModelOption = false;
+      this.displayDiffusionModelOptions = false;
+    },
+    getFileList:function () {
+      const getFilesAndFoldersNamesListener = (event, items) => {
+        this.displayOptions = true;
+        if (this.type === "so-vits-svc-4.1"||this.type === "so-vits-svc-4.0"){
+          if (items.includes('kmeans.pt')){
+            this.displayClusterModelOption = true;
+          }
+        }
+        if (this.type === "so-vits-svc-4.1"){
+          if (items.includes('diffusion.pt') && items.includes('diffusionConfig.yaml')){
+            this.displayDiffusionModelOption = true;
+          }
+        }
+        ipcRenderer.off("files-and-folders-names", getFilesAndFoldersNamesListener);
+      };
+      ipcRenderer.send('get-files-and-folders-names', this.config.workingDirectory + '/weights/'+this.type+'/'+this.modelName, 'file');
+      ipcRenderer.on("files-and-folders-names", getFilesAndFoldersNamesListener);
+    },
+    getSpeakerList:function () {
+      const spkKeys = []; // 用于存储 spk 的键的数组
+      const getJsonFileListener = (event,jsonFile) => {
+        ipcRenderer.off("json-file", getJsonFileListener);
+
+        // 将 spk 属性的键存储到数组中
+        const spk = jsonFile.spk;
+        Object.keys(spk).forEach(key => {
+          if (Object.prototype.hasOwnProperty.call(spk, key)) {
+            spkKeys.push(key);
+          }
+        });
+        this.speakerList = spkKeys;
+
+        ipcRenderer.off("json-file", getJsonFileListener);
+      };
+      ipcRenderer.send('get-json-file', this.config.workingDirectory + '/weights/'+this.type+"/"+this.modelName+"/config.json");
+      ipcRenderer.on("json-file", getJsonFileListener);
+    },
+    getModelList:function () {
+      this.displayOptions = false;
+      this.speakerList = [];
+      this.modelName = '';
+      this.speakerList = '';
+      this.resetOption()
+      const getFilesAndFoldersNamesListener = (event, items) => {
+        this.modelList = items
+        ipcRenderer.off("files-and-folders-names", getFilesAndFoldersNamesListener);
+      };
+      ipcRenderer.send('get-files-and-folders-names', this.config.workingDirectory + '/weights/'+this.type, 'folder');
+      ipcRenderer.on("files-and-folders-names", getFilesAndFoldersNamesListener);
+    },
+    inferenceStart : function () {
+      this.resultList = [];
+      this.outputNumber = 0;
+      if(this.vocalAndBackgroundMusicSeparationOption){
+        let uvr5ArgList = [];
+        for (let dropFile of this.dropFileList){
+          let fileJsonName = this.uvr5VocalList[dropFile.name] = []
+          let i = 0;
+          let nextName = null;
+          let name2 = null;
+          for (let uvr5Parameter in this.uvr5Parameters){
+            uvr5Parameter = this.uvr5Parameters[i]
+            let uvr5Args = [
+              "infer_uvr5.py",
+              "-device",uvr5Parameter.uvr5Device,
+              "-is_half",uvr5Parameter.uvr5isHalf,
+              "-agg",uvr5Parameter.uvr5Agg,
+              "-model",uvr5Parameter.uvr5Weight,
+              "-save_path","out",
+            ];
+            if (uvr5Parameter.uvr5Weight.startsWith("HP")){
+              uvr5Args = uvr5Args.concat(["-model_params","4band_v2"])
+            }else if (uvr5Parameter.uvr5Weight.startsWith("VR")) {
+              uvr5Args = uvr5Args.concat(["-model_params","4band_v3"])
+            }
+            if (i === 0){
+              uvr5Args = uvr5Args.concat(["-audio_path",dropFile.path])
+              if (uvr5Parameter.uvr5Weight.startsWith("HP")){
+                // eslint-disable-next-line no-unused-vars
+                nextName = "vocal_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
+                name2 = "instrument_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
+              }else if (uvr5Parameter.uvr5Weight.startsWith("VR")) {
+                // eslint-disable-next-line no-unused-vars
+                nextName = "main_vocal_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
+                // eslint-disable-next-line no-unused-vars
+                name2 = "others_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
+              }
+            }else {
+              uvr5Args = uvr5Args.concat(["-audio_path",this.config.workingDirectory + "/program/uvr5-cli/out/"+nextName])
+              if (uvr5Parameter.uvr5Weight.startsWith("HP")){
+                // eslint-disable-next-line no-unused-vars
+                nextName = "vocal_" + nextName+ "_" + uvr5Parameter.uvr5Agg +".wav"
+                name2 = "instrument_" + name2+ "_" + uvr5Parameter.uvr5Agg +".wav"
+              }else if (uvr5Parameter.uvr5Weight.startsWith("VR")) {
+                // eslint-disable-next-line no-unused-vars
+                nextName = "main_vocal_" + nextName + "_" + uvr5Parameter.uvr5Agg +".wav"
+                // eslint-disable-next-line no-unused-vars
+                name2 = "others_" + name2 + "_" + uvr5Parameter.uvr5Agg +".wav"
+              }
+            }
+            fileJsonName.push({name1:nextName, name2:name2})
+            i++;
+            uvr5ArgList.push(uvr5Args);
+            // this.uvr5VocalList.push(fileJson);
+          }
+        }
+        ipcRenderer.send("uvr5-inference", JSON.stringify(uvr5ArgList));
+        const uvr5InferenceResult = () => {
+          let fileList = [];
+          for (let i = 0; i < this.dropFileList.length; i++){
+            let uvr5VocalListElement = this.uvr5VocalList[this.dropFileList[i].name];
+            fileList[i]={name:uvr5VocalListElement[uvr5VocalListElement.length -1].name1,path:this.config.workingDirectory + "/program/uvr5-cli/out/" + uvr5VocalListElement[uvr5VocalListElement.length -1].name1}
+          }
+          this.inferenceSVC(fileList);
+          ipcRenderer.off("uvr5-inference-result", uvr5InferenceResult);
+        };
+        ipcRenderer.on("uvr5-inference-result",uvr5InferenceResult)
+      } else {
+        let fileList = [];
+        for (let i = 0; i < this.dropFileList.length; i++){
+          fileList[i]={name:this.dropFileList[i].name,path:this.dropFileList[i].path}
+        }
+        this.inferenceSVC(fileList);
+      }
+    },
+    inferenceSVC(fileList){
+      if (this.type === "so-vits-svc-4.1"||this.type === "so-vits-svc-4.0"){
+        const data = this;
+        const cpSuccess = (event, fileNameList) => {
+          let argList = [];
+          if (data.dropFileList.length === 0) {
+            alert('你并没有选择文件');
+          }else {
+            data.inference = true;
+            fileNameList.forEach((file, index) => {
+              let arg = [
+                data.config.workingDirectory+'/program/so-vits-svc/inference_main.py',
+                "-m", data.config.workingDirectory+"/weights/"+data.type+"/"+data.modelName+"/G.pth",
+                '-c', data.config.workingDirectory+'/weights/'+data.type+'/'+data.modelName+'/config.json',
+                '-n', file, '-t', data.trans,
+                '-s', data.speakerName,
+                "-wf", "wav"
+              ];
+              if (this.displayClusterModelOptions){
+                arg = arg.concat(['-cm',data.config.workingDirectory+'/weights/'+data.type+'/'+data.modelName+'/kmeans.pt','-cr',data.clusterInferRatio])
+              }
+              if (data.device != 0){
+                if (data.device == 1){
+                  arg = arg.concat(['-d','cpu'])
+                }else
+                if (data.device == 2){
+                  arg = arg.concat(['-d','cuda'])
+                }
+              }
+              if (data.displayDiffusionModelOptions){
+                arg = arg.concat(['-dm',data.config.workingDirectory+'/weights/'+data.type+'/'+data.modelName+'/diffusion.pt','-dc',data.config.workingDirectory+'/weights/'+data.type+'/'+data.modelName+'/diffusionConfig.yaml','-ks',data.k_step])
+              }
+              if (data.autoPredictF0){
+                arg = arg.concat(['-a',true,'-f0p',data.f0Predictor,'-ft',data.f0FilterThreshold])
+              }
+              argList[index] = arg;
+            });
+          }
+          ipcRenderer.off("cp-success",cpSuccess);
+          ipcRenderer.send("so-vits-svc-inference",JSON.stringify(argList))
+          const inferenceResult = (event, filePath, index) => {
+            if (filePath == "over") {
+              ipcRenderer.off("so-vits-svc-inference", inferenceResult);
+            }else {
+              if (this.vocalAndBackgroundMusicSeparationOption){
+                const keysArray = Object.keys(this.uvr5VocalList);
+                const keyAtIndex = keysArray[index];
+
+                let outPath = data.config.workingDirectory+'/audio/result/output'+this.outputNumber+'.wav';
+                let arg = [data.config.workingDirectory+'/program/utils/audio_mixer.py'];
+                arg.push(filePath)
+                for (let i in this.uvr5VocalList[keyAtIndex]) {
+                  if (this.instrumentAndOthersMusic[i].check === true) {
+                    arg.push(data.config.workingDirectory + '/program/uvr5-cli/out/' + this.uvr5VocalList[keyAtIndex][i].name2)
+                  }
+                }
+                arg = arg.concat(['--output',outPath,'--volumes'])
+                arg.push('1.0')
+                for (let i in this.uvr5VocalList[keyAtIndex]) {
+                  if (this.instrumentAndOthersMusic[i].check === true){
+                    arg.push(this.instrumentAndOthersMusic[i].volume)
+                  }
+                }
+                console.log(arg);
+                ipcRenderer.send("audio-mixer",arg,outPath)
+                this.outputNumber = this.outputNumber +1
+              }else {
+                this.resultList.push(filePath);
+              }
+            }
+          }
+          ipcRenderer.on("so-vits-svc-inference",inferenceResult)
+        }
+        ipcRenderer.send('cp',fileList,this.config.workingDirectory+'/program/so-vits-svc/raw');
+        ipcRenderer.on("cp-success",cpSuccess)
+      }
+    },
+    // testStart(){
+    //   console.log(this.instrumentAndOthersMusic)
+    // }
+  },
+}
+</script>
+
+<style scoped>
+.container-fluid,
+.container {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+table {
+  border-collapse: collapse; /* 合并边框 */
+}
+
+th, td {
+  border: 1px solid white; /* 设置单元格的边框 */
+  padding: 8px; /* 可选：添加一些内边距以改善外观 */
+}
+
+.row {
+  margin-right: 0;
+  margin-left: 0;
+}
+/* 滚动槽 */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: #4D4D5A;
+}
+
+
+</style>
