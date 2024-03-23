@@ -96,35 +96,61 @@
       border-radius: 3px;">
                 {{index}}.
                 <select v-model="uvr5Parameters[index-1].uvr5WeightType" @change="onChangeUvr5WeightType(index-1)">
-                  <option>VR Architecture</option>
-                  <option>MDXNet</option>
+                  <option v-for="(value,key) in uvr5Models" :key="key">{{key}}</option>
                 </select>
-                <select v-model="uvr5Parameters[index-1].uvr5Weight">
-                  <option v-for="uvr5Weight in uvr5Parameters[index-1].uvr5WeightList" :key="uvr5Weight">{{uvr5Weight}}</option>
+                <select v-if="Object.keys(uvr5Models).length >0 && uvr5Parameters[index-1].uvr5WeightType!=''" v-model="uvr5Parameters[index-1].uvr5Weight">
+                  <option v-for="model in getUvr5Model(uvr5Parameters[index-1].uvr5WeightType)" :key="model">{{model}}</option>
                 </select>
-                <span v-if="uvr5Parameters[index-1].uvr5Weight.startsWith('HP')">
-                  instrument
-                  <input v-model="instrumentAndOthersMusic[index-1].check" type="checkbox">
+                <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'Demucs'">
+                  <p>demucs_segment_size<input type="number"></p>
+                  <p>size of segments into which the audio is split, 1-100. higher = slower but better quality (default: Default).</p>
+                  <p>demucs_shifts<input  type="number"></p>
+                  <p>number of predictions with random shifts, higher = slower but better quality (default: 2).</p>
+                  <p>demucs_overlap<input  type="number"></p>
+                  <p>overlap between prediction windows, 0.001-0.999. higher = slower but better quality (default: 0.25).</p>
+                  <p>demucs_segments_enabled<input type="checkbox" checked></p>
+                  <p>enable segment-wise processing (default: True).</p>
                 </span>
-                <span v-if="uvr5Parameters[index-1].uvr5Weight.startsWith('VR')">
-                  others
-                  <input v-model="instrumentAndOthersMusic[index-1].check" type="checkbox">
+                <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'MDX'">
+                  <p>mdx_segment_size<input type="number"></p>
+                  <p>larger consumes more resources, but may give better results (default: 256).</p>
+                  <p>mdx_overlap<input type="number"></p>
+                  <p>amount of overlap between prediction windows, 0.001-0.999. higher is better but slower (default: 0.25)</p>
+                  <p>mdx_batch_size<input type="number"></p>
+                  <p>larger consumes more RAM but may process slightly faster (default: 1)</p>
+                  <p>mdx_hop_length<input type="number"></p>
+                  <p>usually called stride in neural networks, only change if you know what you're doing (default: 1024).</p>
+                  <p>mdx_enable_denoise<input type="checkbox"></p>
+                  <p>enable denoising during separation (default: False).</p>
                 </span>
-                <div>
-                  <span>device</span>
-                  <select v-model="uvr5Parameters[index-1].uvr5Device">
-                    <option>cuda</option>
-                    <option>cpu</option>
-                  </select>
-                </div>
-                <div v-if="uvr5Parameters[index-1].uvr5Device == 'cuda'">
-                  <span>isHalf</span>
-                  <input type="checkbox" v-model="uvr5Parameters[index-1].uvr5isHalf">
-                </div>
-                <div>
-                  <span>agg</span>
-                  <input v-model="uvr5Parameters[index-1].uvr5Agg">
-                </div>
+                <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'MDXC'">
+                  <p>mdxc_segment_size<input type="number" value="256" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_segment_size"></p>
+                  <p>larger consumes more resources, but may give better results (default: 256).</p>
+                  <p>mdxc_use_model_segment_size<input type="checkbox" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_use_model_segment_size"></p>
+                  <p>use model default segment size instead of the value from the config file.</p>
+                  <p>mdxc_overlap<input  type="number" min="2" max="50" value="8" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_overlap"></p>
+                  <p>amount of overlap between prediction windows, 2-50. higher is better but slower (default: 8).</p>
+                  <p>mdxc_batch_size<input  type="number" value="1" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_batch_size"></p>
+                  <p>larger consumes more RAM but may process slightly faster (default: 1).</p>
+                  <p>mdxc_pitch_shift<input  type="number" value="0" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_pitch_shift"></p>
+                  <p>shift audio pitch by a number of semitones while processing. may improve output for deep/high vocals. (default: 0).</p>
+                </span>
+                <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'VR'">
+                  <p>vr_batch_size<input type="number"></p>
+                  <p>number of batches to process at a time. higher = more RAM, slightly faster processing (default: 4).</p>
+                  <p>vr_window_size<input type="number"></p>
+                  <p>balance quality and speed. 1024 = fast but lower, 320 = slower but better quality. (default: 512).</p>
+                  <p>vr_aggression<input type="number"></p>
+                  <p>intensity of primary stem extraction, -100 - 100. typically 5 for vocals & instrumentals (default: 5).</p>
+                  <p>vr_enable_tta<input type="checkbox"></p>
+                  <p>enable Test-Time-Augmentation; slow but improves quality (default: False).</p>
+                  <p>vr_high_end_process<input type="checkbox"></p>
+                  <p>mirror the missing frequency range of the output (default: False).</p>
+                  <p>vr_enable_post_process<input type="checkbox"></p>
+                  <p>identify leftover artifacts within vocal output; may improve separation for some songs (default: False).</p>
+                  <p>vr_post_process_threshold<input type="number"></p>
+                  <p>threshold for post_process feature: 0.1-0.3 (default: 0.2).</p>
+                </span>
                 <div v-if="instrumentAndOthersMusic[index-1].check">
                   合成音乐音量
                   <input v-model="instrumentAndOthersMusic[index-1].volume">
@@ -217,7 +243,7 @@ export default {
     return {
       inference: false,
       resultList: [],
-      vocalAndBackgroundMusicSeparationOption: false,
+      vocalAndBackgroundMusicSeparationOption: true,
       displayOptions : false,
       displayClusterModelOption: false,
       displayClusterModelOptions: false,
@@ -242,18 +268,16 @@ export default {
       songs:{},
       uvr5Parameters:[
         {
-          uvr5WeightType:"VR Architecture",
+          uvr5WeightType:"",
           uvr5WeightList:{},
-          uvr5Device:"cuda",
-          uvr5isHalf:true,
-          uvr5Agg:10,
-          uvr5Weight:"",
+          uvr5Ages:{}
         },
       ],
       uvr5VocalList:{},
       instrumentAndOthersMusic:[{volume:0.8}],
       uvr5ProcessTime : 1,
       outputNumber: 0,
+      uvr5Models:{}
     }
   },
   created: function() {
@@ -268,9 +292,28 @@ export default {
       ipcRenderer.on('audio-mixer-result', audioMixerResultListener);
     };
     ipcRenderer.on('config', getConfigListener);
-
+    ipcRenderer.send('get-uvr-list-models')
+    const getUvrListModelsListener = (event, result) => {
+      console.log(result)
+      this.uvr5Models=JSON.parse(result);
+      ipcRenderer.off('list-models-result', getUvrListModelsListener);
+    };
+    ipcRenderer.on('list-models-result', getUvrListModelsListener);
   },
   methods: {
+    getUvr5Model(modelType) {
+      const model = []
+      for (const uvr5Model in this.uvr5Models[modelType]) {
+        const value = this.uvr5Models[modelType][uvr5Model];
+        if (typeof value === 'string'){
+          model.push(value)
+        }else if (typeof value === 'object'){
+          const first_key = Object.keys(value)[0]
+          model.push(first_key)
+        }
+      }
+      return model;
+    },
     sumUvr5ProcessTime(){
       this.uvr5Parameters = this.uvr5Parameters.concat({
         uvr5WeightType:"VR Architecture",
@@ -460,7 +503,7 @@ export default {
         for (let i = 0; i < this.dropFileList.length; i++){
           fileList[i]={name:this.dropFileList[i].name,path:this.dropFileList[i].path}
         }
-        this.inferenceSVC(fileList);
+        // this.inferenceSVC(fileList);
       }
     },
     inferenceSVC(fileList){
@@ -548,6 +591,10 @@ export default {
 </script>
 
 <style scoped>
+*{
+  margin: 0;
+  padding: 0;
+}
 .container-fluid,
 .container {
   padding-right: 0;

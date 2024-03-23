@@ -143,6 +143,15 @@ ipcMain.on("resample", async (event, arg) => {
   event.reply('resample-result');
 });
 
+ipcMain.on("get-uvr-list-models", async (event) => {
+  try {
+    const result = await callPythonScript('', config.pythonDirectory+'/Scripts/audio-separator.exe', ['--list_models']);
+    event.reply('list-models-result',result);
+  } catch (error) {
+    console.error('Error executing Python script:', error);
+  }
+});
+
 ipcMain.on("audio-mixer", async (event, arg,outPath) => {
   try {
     const result = await callPythonScript(config.workingDirectory+'/program/utils/', config.pythonDirectory+'/python.exe', arg);
