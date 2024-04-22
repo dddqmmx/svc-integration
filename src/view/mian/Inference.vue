@@ -89,72 +89,82 @@
           </div>
           <div v-if="vocalAndBackgroundMusicSeparationOption" style="margin-top: 10px">
             <h6>人声伴奏分离<input type="button" value="+" @click="sumUvr5ProcessTime"><input type="button" value="-" @click="minusUvr5ProcessTime"></h6>
+            <div>推理音频选择
+              <select v-model="inferenceAudioChoice">
+                <option v-for="(option, index) in options" :key="index" :value="option.value">{{ option.label }}</option>
+              </select>
+              <p>混音音量: <input type="number" v-model="inferenceAudioVolume"></p>
+            </div>
             <span v-for="index in uvr5ProcessTime" :key="index">
               <div style="background-color: #606068;
+              margin-top: 10px;
       color: white;
       padding: 10px;
       border-radius: 3px;">
                 {{index}}.
+                <select v-if="index>1" v-model="uvr5Parameters[index-1].inferenceFile" >
+                  <option value="1">MainAudio</option>
+                  <option value="2">SubAudio</option>
+                </select>
                 <select v-model="uvr5Parameters[index-1].uvr5WeightType" @change="onChangeUvr5WeightType(index-1)">
                   <option v-for="(value,key) in uvr5Models" :key="key">{{key}}</option>
                 </select>
                 <select v-if="Object.keys(uvr5Models).length >0 && uvr5Parameters[index-1].uvr5WeightType!=''" v-model="uvr5Parameters[index-1].uvr5Weight">
                   <option v-for="model in getUvr5Model(uvr5Parameters[index-1].uvr5WeightType)" :key="model">{{model}}</option>
+                  <option v-for="model in getUvr5Model(uvr5Parameters[index-1].uvr5WeightType)" :key="model">{{model}}</option>
                 </select>
+                <p><input :checked="index===1" v-model="uvr5Parameters[index-1].useForAccompaniment" type="checkbox">把副音频做为伴奏</p>
+                <p v-if="uvr5Parameters[index-1].useForAccompaniment">混音音量: <input type="number" v-model="uvr5Parameters[index-1].volume"></p>
                 <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'Demucs'">
-                  <p>demucs_segment_size<input type="text" value="Default" v-bind="uvr5Parameters[index-1].uvr5Ages.demucs_segment_size"></p>
+                  <p>demucs_segment_size<input type="text" value="Default" v-model="uvr5Parameters[index-1].uvr5Ages.demucs_segment_size"></p>
                   <p>size of segments into which the audio is split, 1-100. higher = slower but better quality (default: Default).</p>
-                  <p>demucs_shifts<input type="number" value="2" v-bind="uvr5Parameters[index-1].uvr5Ages.demucs_shifts"></p>
+                  <p>demucs_shifts<input type="number" value="2" v-model="uvr5Parameters[index-1].uvr5Ages.demucs_shifts"></p>
                   <p>number of predictions with random shifts, higher = slower but better quality (default: 2).</p>
-                  <p>demucs_overlap<input type="number" min="0.001" max="0.999" value="0.25" v-bind="uvr5Parameters[index-1].uvr5Ages.demucs_overlap"></p>
+                  <p>demucs_overlap<input type="number" min="0.001" max="0.999" value="0.25" v-model="uvr5Parameters[index-1].uvr5Ages.demucs_overlap"></p>
                   <p>overlap between prediction windows, 0.001-0.999. higher = slower but better quality (default: 0.25).</p>
-                  <p>demucs_segments_enabled<input type="checkbox" checked v-bind="uvr5Parameters[index-1].uvr5Ages.demucs_segments_enabled"></p>
+                  <p>demucs_segments_enabled<input type="checkbox" checked v-model="uvr5Parameters[index-1].uvr5Ages.demucs_segments_enabled"></p>
                   <p>enable segment-wise processing (default: True).</p>
                 </span>
                 <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'MDX'">
-                  <p>mdx_segment_size<input type="number" value="256" v-bind="uvr5Parameters[index-1].uvr5Ages.mdx_segment_size"></p>
+                  <p>mdx_segment_size<input type="number" value="256" v-model="uvr5Parameters[index-1].uvr5Ages.mdx_segment_size"></p>
                   <p>larger consumes more resources, but may give better results (default: 256).</p>
-                  <p>mdx_overlap<input type="number" min="0.001" max="0.999" value="0.25" v-bind="uvr5Parameters[index-1].uvr5Ages.mdx_overlap"></p>
+                  <p>mdx_overlap<input type="number" min="0.001" max="0.999" value="0.25" v-model="uvr5Parameters[index-1].uvr5Ages.mdx_overlap"></p>
                   <p>amount of overlap between prediction windows, 0.001-0.999. higher is better but slower (default: 0.25)</p>
-                  <p>mdx_batch_size<input type="number" value="1" v-bind="uvr5Parameters[index-1].uvr5Ages.mdx_batch_size"></p>
+                  <p>mdx_batch_size<input type="number" value="1" v-model="uvr5Parameters[index-1].uvr5Ages.mdx_batch_size"></p>
                   <p>larger consumes more RAM but may process slightly faster (default: 1)</p>
-                  <p>mdx_hop_length<input type="number" value="1024" v-bind="uvr5Parameters[index-1].uvr5Ages.mdx_hop_length"></p>
+                  <p>mdx_hop_length<input type="number" value="1024" v-model="uvr5Parameters[index-1].uvr5Ages.mdx_hop_length"></p>
                   <p>usually called stride in neural networks, only change if you know what you're doing (default: 1024).</p>
-                  <p>mdx_enable_denoise<input type="checkbox" v-bind="uvr5Parameters[index-1].uvr5Ages.mdx_enable_denoise"></p>
+                  <p>mdx_enable_denoise<input type="checkbox" v-model="uvr5Parameters[index-1].uvr5Ages.mdx_enable_denoise"></p>
                   <p>enable denoising during separation (default: False).</p>
                 </span>
                 <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'MDXC'">
-                  <p>mdxc_segment_size<input type="number" value="256" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_segment_size"></p>
+                  <p>mdxc_segment_size<input type="number" value="256" v-model="uvr5Parameters[index-1].uvr5Ages.mdxc_segment_size"></p>
                   <p>larger consumes more resources, but may give better results (default: 256).</p>
-                  <p>mdxc_use_model_segment_size<input type="checkbox" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_use_model_segment_size"></p>
+                  <p>mdxc_use_model_segment_size<input type="checkbox" v-model="uvr5Parameters[index-1].uvr5Ages.mdxc_use_model_segment_size"></p>
                   <p>use model default segment size instead of the value from the config file.</p>
-                  <p>mdxc_overlap<input type="number" min="2" max="50" value="8" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_overlap"></p>
+                  <p>mdxc_overlap<input type="number" min="2" max="50" value="8" v-model="uvr5Parameters[index-1].uvr5Ages.mdxc_overlap"></p>
                   <p>amount of overlap between prediction windows, 2-50. higher is better but slower (default: 8).</p>
-                  <p>mdxc_batch_size<input type="number" value="1" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_batch_size"></p>
+                  <p>mdxc_batch_size<input type="number" value="1" v-model="uvr5Parameters[index-1].uvr5Ages.mdxc_batch_size"></p>
                   <p>larger consumes more RAM but may process slightly faster (default: 1).</p>
-                  <p>mdxc_pitch_shift<input type="number" value="0" v-bind="uvr5Parameters[index-1].uvr5Ages.mdxc_pitch_shift"></p>
+                  <p>mdxc_pitch_shift<input type="number" value="0" v-model="uvr5Parameters[index-1].uvr5Ages.mdxc_pitch_shift"></p>
                   <p>shift audio pitch by a number of semitones while processing. may improve output for deep/high vocals. (default: 0).</p>
                 </span>
                 <span v-if="uvr5Parameters[index-1].uvr5WeightType === 'VR'">
-                  <p>vr_batch_size<input type="number" value="4" v-bind="uvr5Parameters[index-1].uvr5Ages.vr_batch_size"></p>
+                  <p>vr_batch_size<input type="number" value="4" v-model="uvr5Parameters[index-1].uvr5Ages.vr_batch_size"></p>
                   <p>number of batches to process at a time. higher = more RAM, slightly faster processing (default: 4).</p>
-                  <p>vr_window_size<input type="number" value="512" v-bind="uvr5Parameters[index-1].uvr5Ages.vr_window_size"></p>
+                  <p>vr_window_size<input type="number" value="512" v-model="uvr5Parameters[index-1].uvr5Ages.vr_window_size"></p>
                   <p>balance quality and speed. 1024 = fast but lower, 320 = slower but better quality. (default: 512).</p>
-                  <p>vr_aggression<input type="number" value="5" v-bind="uvr5Parameters[index-1].uvr5Ages.vr_aggression"></p>
+                  <p>vr_aggression<input type="number" value="5" v-model="uvr5Parameters[index-1].uvr5Ages.vr_aggression"></p>
                   <p>intensity of primary stem extraction, -100 - 100. typically 5 for vocals & instrumentals (default: 5).</p>
-                  <p>vr_enable_tta<input type="checkbox"  v-bind="uvr5Parameters[index-1].uvr5Ages.vr_enable_tta"></p>
+                  <p>vr_enable_tta<input type="checkbox"  v-model="uvr5Parameters[index-1].uvr5Ages.vr_enable_tta"></p>
                   <p>enable Test-Time-Augmentation; slow but improves quality (default: False).</p>
-                  <p>vr_high_end_process<input type="checkbox" v-bind="uvr5Parameters[index-1].uvr5Ages.vr_high_end_process"></p>
+                  <p>vr_high_end_process<input type="checkbox" v-model="uvr5Parameters[index-1].uvr5Ages.vr_high_end_process"></p>
                   <p>mirror the missing frequency range of the output (default: False).</p>
-                  <p>vr_enable_post_process<input type="checkbox" v-bind="uvr5Parameters[index-1].uvr5Ages.vr_enable_post_process"></p>
+                  <p>vr_enable_post_process<input type="checkbox" v-model="uvr5Parameters[index-1].uvr5Ages.vr_enable_post_process"></p>
                   <p>identify leftover artifacts within vocal output; may improve separation for some songs (default: False).</p>
-                  <p>vr_post_process_threshold<input type="number" min="0.1" max="0.3" value="0.2" v-bind="uvr5Parameters[index-1].uvr5Ages.vr_post_process_threshold"></p>
+                  <p>vr_post_process_threshold<input type="number" min="0.1" max="0.3" value="0.2" v-model="uvr5Parameters[index-1].uvr5Ages.vr_post_process_threshold"></p>
                   <p>threshold for post_process feature: 0.1-0.3 (default: 0.2).</p>
                 </span>
-                <div v-if="instrumentAndOthersMusic[index-1].check">
-                  合成音乐音量
-                  <input v-model="instrumentAndOthersMusic[index-1].volume">
-                </div>
               </div>
             </span>
           </div>
@@ -241,6 +251,8 @@ export default {
   name: "Inference",
   data:function () {
     return {
+      inferenceAudioChoice:"",
+      options: [],
       inference: false,
       resultList: [],
       vocalAndBackgroundMusicSeparationOption: true,
@@ -266,25 +278,51 @@ export default {
       dropFileList: [],
       keywords:"",
       songs:{},
+      output_list:[],
+      inferenceAudioVolume: 0.8,
       uvr5Parameters:[
         {
+          useForAccompaniment:true,
+          volume:0.8,
           uvr5WeightType:"",
-          uvr5WeightList:{},
-          uvr5Ages:{}
+          uvr5Ages:{
+            demucs_segment_size:'Default',
+            demucs_shifts:2,
+            demucs_overlap:0.25,
+            demucs_segments_enabled:true,
+            mdx_segment_size:256,
+            mdx_overlap:0.25,
+            mdx_batch_size:1,
+            mdx_hop_length:1024,
+            mdx_enable_denoise:false,
+            mdxc_segment_size:256,
+            mdxc_use_model_segment_size:false,
+            mdxc_overlap:8,
+            mdxc_batch_size:1,
+            mdxc_pitch_shift:0,
+            vr_batch_size:4,
+            vr_window_size:512,
+            vr_aggression:5,
+            vr_enable_tta:false,
+            vr_high_end_process:false,
+            vr_enable_post_process:false,
+            vr_post_process_threshold:0.2
+          }
         },
       ],
-      uvr5VocalList:{},
-      instrumentAndOthersMusic:[{volume:0.8}],
+      mixerList:[],
       uvr5ProcessTime : 1,
       outputNumber: 0,
       uvr5Models:{}
     }
   },
+
   created: function() {
     ipcRenderer.send('get-config');
     const getConfigListener = (event, config) => {
       this.config = config;
       this.getModelList();
+      this.updateOptions();
       ipcRenderer.off('config', getConfigListener);
       const audioMixerResultListener = (event, outPath) => {
         this.resultList.push(outPath);
@@ -294,13 +332,26 @@ export default {
     ipcRenderer.on('config', getConfigListener);
     ipcRenderer.send('get-uvr-list-models')
     const getUvrListModelsListener = (event, result) => {
-      console.log(result)
       this.uvr5Models=JSON.parse(result);
       ipcRenderer.off('list-models-result', getUvrListModelsListener);
     };
     ipcRenderer.on('list-models-result', getUvrListModelsListener);
   },
   methods: {
+    updateOptions() {
+      this.options = [];
+      for (let i = 1; i <= this.uvr5Parameters.length; i++) {
+        // this.options.push(`${i}.MainAudio`, `${i}.SubAudio`);
+        this.options.push({
+          label: `${i}.MainAudio`,
+          value: `${i}.1`
+        });
+        this.options.push({
+          label: `${i}.SubAudio`,
+          value: `${i}.2`
+        });
+      }
+    },
     getUvr5Model(modelType) {
       const model = []
       for (const uvr5Model in this.uvr5Models[modelType]) {
@@ -316,23 +367,44 @@ export default {
     },
     sumUvr5ProcessTime(){
       this.uvr5Parameters = this.uvr5Parameters.concat({
-        uvr5WeightType:"VR Architecture",
-        uvr5WeightList:{},
-        uvr5Device:"cuda",
-        uvr5isHalf:true,
-        uvr5Agg:10,
-        uvr5Weight:"",
+        useForAccompaniment:false,
+        volume:0.8,
+        uvr5WeightType:"",
+        inferenceFile:1,
+        uvr5Ages:{
+          demucs_segment_size:'Default',
+          demucs_shifts:2,
+          demucs_overlap:0.25,
+          demucs_segments_enabled:true,
+          mdx_segment_size:256,
+          mdx_overlap:0.25,
+          mdx_batch_size:1,
+          mdx_hop_length:1024,
+          mdx_enable_denoise:false,
+          mdxc_segment_size:256,
+          mdxc_use_model_segment_size:false,
+          mdxc_overlap:8,
+          mdxc_batch_size:1,
+          mdxc_pitch_shift:0,
+          vr_batch_size:4,
+          vr_window_size:512,
+          vr_aggression:5,
+          vr_enable_tta:false,
+          vr_high_end_process:false,
+          vr_enable_post_process:false,
+          vr_post_process_threshold:0.2
+        }
       });
       this.uvr5ProcessTime = this.uvr5ProcessTime+1;
       this.onChangeUvr5WeightType(this.uvr5ProcessTime-1);
-      this.instrumentAndOthersMusic.push({volume:0.8})
+      this.updateOptions()
     },
     minusUvr5ProcessTime(){
       if (this.uvr5ProcessTime !== 1){
         this.uvr5ProcessTime = this.uvr5ProcessTime-1;
         this.uvr5Parameters = this.uvr5Parameters.filter((item, index) => index !== this.uvr5ProcessTime);
-        this.instrumentAndOthersMusic.pop();
       }
+      this.updateOptions()
     },
     clickVocalAndBackgroundMusicSeparationOption(e){
       if (e.target.checked) {
@@ -340,25 +412,9 @@ export default {
       }
     },
     onChangeUvr5WeightType(index){
-      if (this.uvr5Parameters[index].uvr5WeightType == "VR Architecture") {
-        const getFilesAndFoldersNamesListener = (event, items) => {
-          this.uvr5Parameters[index].uvr5WeightList = items;
-
-          ipcRenderer.off("files-and-folders-names", getFilesAndFoldersNamesListener);
-        };
-        ipcRenderer.send('get-files-and-folders-names',this.config.workingDirectory + '/program/uvr5-cli/assets/uvr5_weights/', 'file');
-        ipcRenderer.on("files-and-folders-names", getFilesAndFoldersNamesListener);
-      }else {
-        this.uvr5Parameters[index].uvr5WeightList= ["还没做"];
-      }
+      index
     },
     getNeteaseCloudMusicSearch(){
-      // getSearch({
-      //   keywords: this.keywords,
-      //   limit: 5
-      // }).then(res => {
-      //   this.songs = JSON.parse(JSON.stringify(res.data.result.songs))
-      // })
     },
     getAudioSrc(filePath) {
       // Use the Node.js fs module to read the file
@@ -434,76 +490,59 @@ export default {
     inferenceStart : function () {
       this.resultList = [];
       this.outputNumber = 0;
-      if(this.vocalAndBackgroundMusicSeparationOption){
+      if(this.vocalAndBackgroundMusicSeparationOption) {
         let uvr5ArgList = [];
-        for (let dropFile of this.dropFileList){
-          let fileJsonName = this.uvr5VocalList[dropFile.name] = []
-          let i = 0;
-          let nextName = null;
-          let name2 = null;
-          for (let uvr5Parameter in this.uvr5Parameters){
-            uvr5Parameter = this.uvr5Parameters[i]
-            let uvr5Args = [
-              "infer_uvr5.py",
-              "-device",uvr5Parameter.uvr5Device,
-              "-is_half",uvr5Parameter.uvr5isHalf,
-              "-agg",uvr5Parameter.uvr5Agg,
-              "-model",uvr5Parameter.uvr5Weight,
-              "-save_path","out",
-            ];
-            if (uvr5Parameter.uvr5Weight.startsWith("HP")){
-              uvr5Args = uvr5Args.concat(["-model_params","4band_v2"])
-            }else if (uvr5Parameter.uvr5Weight.startsWith("VR")) {
-              uvr5Args = uvr5Args.concat(["-model_params","4band_v3"])
-            }
-            if (i === 0){
-              uvr5Args = uvr5Args.concat(["-audio_path",dropFile.path])
-              if (uvr5Parameter.uvr5Weight.startsWith("HP")){
-                // eslint-disable-next-line no-unused-vars
-                nextName = "vocal_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
-                name2 = "instrument_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
-              }else if (uvr5Parameter.uvr5Weight.startsWith("VR")) {
-                // eslint-disable-next-line no-unused-vars
-                nextName = "main_vocal_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
-                // eslint-disable-next-line no-unused-vars
-                name2 = "others_" + dropFile.name + "_"+ uvr5Parameter.uvr5Agg +".wav"
+        for (let dropFile of this.dropFileList) {
+          let uvr5Args = [];
+          for (let uvr5Parameter in this.uvr5Parameters) {
+            let args = [];
+            args.push(dropFile.path)
+            args.concat(['--model_filename',uvr5Parameter.uvr5WeightType])
+            uvr5Parameter = this.uvr5Parameters[uvr5Parameter]
+            Object.keys(uvr5Parameter.uvr5Ages).forEach(function (key) {
+              const value = uvr5Parameter.uvr5Ages[key];
+              if (key.startsWith(uvr5Parameter.uvr5WeightType.toLowerCase())){
+                if (typeof value == 'boolean' && value){
+                  args.push('--'+key)
+                }else if (typeof value != 'boolean'){
+                  args = args.concat(['--'+key,value])
+                }
               }
-            }else {
-              uvr5Args = uvr5Args.concat(["-audio_path",this.config.workingDirectory + "/program/uvr5-cli/out/"+nextName])
-              if (uvr5Parameter.uvr5Weight.startsWith("HP")){
-                // eslint-disable-next-line no-unused-vars
-                nextName = "vocal_" + nextName+ "_" + uvr5Parameter.uvr5Agg +".wav"
-                name2 = "instrument_" + name2+ "_" + uvr5Parameter.uvr5Agg +".wav"
-              }else if (uvr5Parameter.uvr5Weight.startsWith("VR")) {
-                // eslint-disable-next-line no-unused-vars
-                nextName = "main_vocal_" + nextName + "_" + uvr5Parameter.uvr5Agg +".wav"
-                // eslint-disable-next-line no-unused-vars
-                name2 = "others_" + name2 + "_" + uvr5Parameter.uvr5Agg +".wav"
-              }
-            }
-            fileJsonName.push({name1:nextName, name2:name2})
-            i++;
-            uvr5ArgList.push(uvr5Args);
-            // this.uvr5VocalList.push(fileJson);
+            });
+            uvr5Args.push({inferenceFile:uvr5Parameter.inferenceFile,args:args});
           }
+          uvr5ArgList.push(uvr5Args)
         }
+        console.log(uvr5ArgList)
+        const inferenceFileArray = [];
         ipcRenderer.send("uvr5-inference", JSON.stringify(uvr5ArgList));
-        const uvr5InferenceResult = () => {
+        const uvr5InferenceResult = (event, output_list) => {
+          for (const i in output_list){
+            const outputs = output_list[i];
+            const mixers = []
+            for (const j in outputs){
+              if (this.uvr5Parameters[j].useForAccompaniment){
+                mixers.push({volume:this.uvr5Parameters[j].volume,audioPath:this.config.workingDirectory + "/tmp/uvr5_output/"+outputs[j].subAudio})
+                console.log(this.config.workingDirectory + "/tmp/uvr5_output/"+outputs[j].subAudio)
+
+              }
+            }
+            if (this.inferenceAudioChoice.split('.')[1] == "1"){
+              inferenceFileArray.push(outputs[this.inferenceAudioChoice.split('.')[0]-1].mainAudio)
+            }else {
+              inferenceFileArray.push(outputs[this.inferenceAudioChoice.split('.')[0]-1].subAudio)
+            }
+            this.mixerList.push(mixers)
+          }
+          console.log(this.mixerList)
           let fileList = [];
           for (let i = 0; i < this.dropFileList.length; i++){
-            let uvr5VocalListElement = this.uvr5VocalList[this.dropFileList[i].name];
-            fileList[i]={name:uvr5VocalListElement[uvr5VocalListElement.length -1].name1,path:this.config.workingDirectory + "/program/uvr5-cli/out/" + uvr5VocalListElement[uvr5VocalListElement.length -1].name1}
+            fileList[i]={name:inferenceFileArray[i],path:this.config.workingDirectory + "/tmp/uvr5_output/" + inferenceFileArray[i]}
           }
           this.inferenceSVC(fileList);
           ipcRenderer.off("uvr5-inference-result", uvr5InferenceResult);
-        };
+         };
         ipcRenderer.on("uvr5-inference-result",uvr5InferenceResult)
-      } else {
-        let fileList = [];
-        for (let i = 0; i < this.dropFileList.length; i++){
-          fileList[i]={name:this.dropFileList[i].name,path:this.dropFileList[i].path}
-        }
-        // this.inferenceSVC(fileList);
       }
     },
     inferenceSVC(fileList){
@@ -551,25 +590,17 @@ export default {
               ipcRenderer.off("so-vits-svc-inference", inferenceResult);
             }else {
               if (this.vocalAndBackgroundMusicSeparationOption){
-                const keysArray = Object.keys(this.uvr5VocalList);
-                const keyAtIndex = keysArray[index];
-
                 let outPath = data.config.workingDirectory+'/audio/result/output'+this.outputNumber+'.wav';
                 let arg = [data.config.workingDirectory+'/program/utils/audio_mixer.py'];
                 arg.push(filePath)
-                for (let i in this.uvr5VocalList[keyAtIndex]) {
-                  if (this.instrumentAndOthersMusic[i].check === true) {
-                    arg.push(data.config.workingDirectory + '/program/uvr5-cli/out/' + this.uvr5VocalList[keyAtIndex][i].name2)
-                  }
+                for (let mixerInfo of this.mixerList[index]) {
+                  arg.push(mixerInfo.audioPath)
                 }
                 arg = arg.concat(['--output',outPath,'--volumes'])
-                arg.push('1.0')
-                for (let i in this.uvr5VocalList[keyAtIndex]) {
-                  if (this.instrumentAndOthersMusic[i].check === true){
-                    arg.push(this.instrumentAndOthersMusic[i].volume)
-                  }
+                arg.push(this.inferenceAudioVolume)
+                for (let mixerInfo of this.mixerList[index]) {
+                  arg.push(mixerInfo.volume)
                 }
-                console.log(arg);
                 ipcRenderer.send("audio-mixer",arg,outPath)
                 this.outputNumber = this.outputNumber +1
               }else {
@@ -583,9 +614,6 @@ export default {
         ipcRenderer.on("cp-success",cpSuccess)
       }
     },
-    // testStart(){
-    //   console.log(this.instrumentAndOthersMusic)
-    // }
   },
 }
 </script>

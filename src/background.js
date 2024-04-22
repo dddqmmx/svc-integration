@@ -163,24 +163,131 @@ ipcMain.on("audio-mixer", async (event, arg,outPath) => {
 });
 
 
-ipcMain.on("uvr5-inference", async (event, argList) => {
-  argList = JSON.parse(argList);
-  const results = [];
-  console.log('123');
-  for (const arg of argList) {
-    console.log('456');
-    try {
-      const result = await callPythonScript(config.workingDirectory+'/program/uvr5-cli/', config.pythonDirectory+'/python.exe', arg);
-      console.log('Python script executed:', result);
-    } catch (error) {
-      console.error('Error executing Python script:', error);
-      results.push(null);
-    }
-  }
+//
+ipcMain.on("uvr5-inference", async (event, argsJson) => {4
+  let argsList = JSON.parse(argsJson);
+  let outputs_list = [];
+  for (const args of argsList) {
+    let outputs = []; // 移至循环外部，确保只创建一次
+    for (const argInfo of args) {
+      const arg = argInfo.args;
+      let inferenceFile = ""; // 声明变量用于存储 inferenceFile
+      console.log(argInfo)
+      if (argInfo.inferenceFile) {
+        console.log('inferenceFile cage')
+        try {
+          if (outputs.length > 0) {
+            inferenceFile = (argInfo.inferenceFile === 1) ? outputs[outputs.length - 1].mainAudio : outputs[outputs.length - 1].subAudio;
+            arg[0] = config.workingDirectory + '/tmp/uvr5_output/' + inferenceFile;
+          }
+        } catch (error) {
+          console.error('Error setting inferenceFile:', error);
+        }
+      }
 
-  event.reply('uvr5-inference-result');
+      try {
+        const result = await callPythonScript(config.workingDirectory+'/tmp/uvr5_output', config.pythonDirectory+'/Scripts/audio-separator.exe', arg);
+        console.log('Python script executed:', result);
+      } catch (error) {
+        console.error('Error executing Python script:', error);
+      }
+
+      // 异步等待获取最新的音频文件
+      await new Promise((resolve, reject) => {
+        findLatestAudioFiles(config.workingDirectory + '/tmp/uvr5_output', (err, result) => {
+          if (err) {
+            console.error('Error:', err);
+            reject(err); // 如果出现错误，拒绝 Promise
+            return;
+          }
+          outputs.push(result);
+          resolve(); // 解决 Promise
+        });
+      });
+    }
+    outputs_list.push(outputs);
+  }
+  console.log(outputs_list)
+  event.reply('uvr5-inference-result', outputs_list);
+
+  // console.log(argList)
+  // const output_list = []
+  // argList = JSON.parse(argList);
+  // for (const index in argList) {
+  //   for (const i in argList[index]){
+  //     const outputs = []
+  //     console.log(argList[index][i])
+  //     const arg = argList[index][i].args;
+  //     console.log(argList[index][i].inferenceFile)
+  //     if (argList[index] && argList[index][i].inferenceFile){
+  //       let inferenceFile = '';
+  //       console.log("wwwwwwwwwwwwwwwwwwwwww",output_list[index-1])
+  //       if (argList[index][i].inferenceFile == 1){
+  //         inferenceFile = output_list[index-1].mainAudio;
+  //       } else {
+  //         inferenceFile = output_list[index-1].subAudio;
+  //       }
+  //       console.log(inferenceFile)
+  //       arg[0] = config.workingDirectory+'/tmp/uvr5_output/'+inferenceFile;
+  //     }
+  //     try {
+  //       const result = await callPythonScript(config.workingDirectory+'/tmp/uvr5_output', config.pythonDirectory+'/Scripts/audio-separator.exe', arg);
+  //       console.log('Python script executed:', result);
+  //     } catch (error) {
+  //       console.error('Error executing Python script:', error);
+  //     }
+  //     await new Promise((resolve, reject) => {
+  //       findLatestAudioFiles(config.workingDirectory+'/tmp/uvr5_output', (err, result) => {
+  //         if (err) {
+  //           console.error('Error:', err);
+  //           reject(err); // 如果出现错误，拒绝 Promise
+  //           return;
+  //         }
+  //         outputs.push(result)
+  //         resolve(); // 解决 Promise
+  //       });
+  //     });
+  //     output_list.push(outputs)
+  //     console.log(outputs)
+  //   }
+  //   console.log(output_list)
+  // }
+
 });
 
+function findLatestAudioFiles(folderPath, callback) {
+  // 读取文件夹中的所有文件
+  fs.readdir(folderPath, (err, files) => {
+    if (err) {
+      callback(err, null);
+      return;
+    }
+
+    // 过滤出文件
+    const filteredFiles = files.filter(file => fs.statSync(path.join(folderPath, file)).isFile());
+
+    // 按修改时间排序文件
+    filteredFiles.sort((a, b) => {
+      return fs.statSync(path.join(folderPath, b)).mtime.getTime() - fs.statSync(path.join(folderPath, a)).mtime.getTime();
+    });
+
+    // 构建 JSON 对象
+    const result = {
+      subAudio: null,
+      mainAudio: null
+    };
+
+    // 添加最新的两个文件
+    if (filteredFiles.length > 0) {
+      result.subAudio = filteredFiles[0];
+    }
+    if (filteredFiles.length > 1) {
+      result.mainAudio = filteredFiles[1];
+    }
+
+    callback(null, result);
+  });
+}
 ipcMain.on("so-vits-svc-inference", async (event, argList) => {
   argList = JSON.parse(argList);
   const results = [];
@@ -197,13 +304,8 @@ ipcMain.on("so-vits-svc-inference", async (event, argList) => {
       results.push(null);
     }
   }
-
-
   event.reply('so-vits-svc-inference', "over");
 });
-
-
-
 
 async function findLatestFilePathInDirectory(directoryPath) {
   try {
