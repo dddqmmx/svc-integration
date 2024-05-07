@@ -145,7 +145,7 @@ ipcMain.on("resample", async (event, arg) => {
 
 ipcMain.on("get-uvr-list-models", async (event) => {
   try {
-    const result = await callPythonScript('', config.pythonDirectory+'/Scripts/audio-separator.exe', ['--list_models']);
+    const result = await callPythonScript('', config.pythonDirectory+'/Scripts/audio-separator.exe', ['--list_models','--model_file_dir',config.workingDirectory + "/tmp/audio-separator-models/"]);
     event.reply('list-models-result',result);
   } catch (error) {
     console.error('Error executing Python script:', error);
@@ -200,6 +200,7 @@ ipcMain.on("uvr5-inference", async (event, argsJson) => {4
             reject(err); // 如果出现错误，拒绝 Promise
             return;
           }
+          console.log(result)
           outputs.push(result);
           resolve(); // 解决 Promise
         });
@@ -209,50 +210,6 @@ ipcMain.on("uvr5-inference", async (event, argsJson) => {4
   }
   console.log(outputs_list)
   event.reply('uvr5-inference-result', outputs_list);
-
-  // console.log(argList)
-  // const output_list = []
-  // argList = JSON.parse(argList);
-  // for (const index in argList) {
-  //   for (const i in argList[index]){
-  //     const outputs = []
-  //     console.log(argList[index][i])
-  //     const arg = argList[index][i].args;
-  //     console.log(argList[index][i].inferenceFile)
-  //     if (argList[index] && argList[index][i].inferenceFile){
-  //       let inferenceFile = '';
-  //       console.log("wwwwwwwwwwwwwwwwwwwwww",output_list[index-1])
-  //       if (argList[index][i].inferenceFile == 1){
-  //         inferenceFile = output_list[index-1].mainAudio;
-  //       } else {
-  //         inferenceFile = output_list[index-1].subAudio;
-  //       }
-  //       console.log(inferenceFile)
-  //       arg[0] = config.workingDirectory+'/tmp/uvr5_output/'+inferenceFile;
-  //     }
-  //     try {
-  //       const result = await callPythonScript(config.workingDirectory+'/tmp/uvr5_output', config.pythonDirectory+'/Scripts/audio-separator.exe', arg);
-  //       console.log('Python script executed:', result);
-  //     } catch (error) {
-  //       console.error('Error executing Python script:', error);
-  //     }
-  //     await new Promise((resolve, reject) => {
-  //       findLatestAudioFiles(config.workingDirectory+'/tmp/uvr5_output', (err, result) => {
-  //         if (err) {
-  //           console.error('Error:', err);
-  //           reject(err); // 如果出现错误，拒绝 Promise
-  //           return;
-  //         }
-  //         outputs.push(result)
-  //         resolve(); // 解决 Promise
-  //       });
-  //     });
-  //     output_list.push(outputs)
-  //     console.log(outputs)
-  //   }
-  //   console.log(output_list)
-  // }
-
 });
 
 function findLatestAudioFiles(folderPath, callback) {
@@ -264,7 +221,14 @@ function findLatestAudioFiles(folderPath, callback) {
     }
 
     // 过滤出文件
-    const filteredFiles = files.filter(file => fs.statSync(path.join(folderPath, file)).isFile());
+    const filteredFiles = files.filter(file => {
+      try {
+        return fs.statSync(path.join(folderPath, file)).isFile();
+      } catch (err) {
+        console.error(`Error reading file ${file}: ${err}`);
+        return false;
+      }
+    });
 
     // 按修改时间排序文件
     filteredFiles.sort((a, b) => {
@@ -277,17 +241,38 @@ function findLatestAudioFiles(folderPath, callback) {
       mainAudio: null
     };
 
-    // 添加最新的两个文件
-    if (filteredFiles.length > 0) {
-      result.subAudio = filteredFiles[0];
-    }
-    if (filteredFiles.length > 1) {
-      result.mainAudio = filteredFiles[1];
+    // 打印最新的两个文件名
+    console.log("最新文件1：", filteredFiles.length > 0 ? filteredFiles[0] : "无");
+    console.log("最新文件2：", filteredFiles.length > 1 ? filteredFiles[1] : "无");
+
+
+    const reversedVocals = "Vocals".split('').reverse().join('');
+    const reversedNoReverb = "No Reverb".split('').reverse().join('');
+    const reversedInstrumental = "Instrumental".split('').reverse().join('');
+    // 遍历文件列表，找到最新的两个音频文件并根据关键词分配
+    for (let i = 0; i < Math.min(2, filteredFiles.length); i++) {
+      const fileName = filteredFiles[i];
+      const reversedFileName = fileName.split('').reverse().join('');
+      const match = reversedFileName.match(new RegExp(`(${reversedVocals}|${reversedNoReverb}|${reversedInstrumental})`, 'i'));
+      if (match) {
+        const keyword = match[1];
+        if (keyword === reversedVocals || keyword === reversedNoReverb) {
+          if (result.mainAudio === null) {
+            result.mainAudio = fileName;
+          }
+        } else if (keyword === reversedInstrumental) {
+          if (result.subAudio === null) {
+            result.subAudio = fileName;
+          }
+        }
+      }
     }
 
     callback(null, result);
   });
 }
+
+
 ipcMain.on("so-vits-svc-inference", async (event, argList) => {
   argList = JSON.parse(argList);
   const results = [];
@@ -548,7 +533,16 @@ function callPythonScript(cwd, py, args) {
 const configPath = path.join(appPath, '/../config.json');
 
 function readConfigFile() {
-  return readJsonFile(configPath);
+  const config = readJsonFile(configPath);
+  if (config) {
+    // 将相对路径转换为绝对路径（如果需要）
+    ['workingDirectory', 'pythonDirectory'].forEach(key => {
+      if (config[key] && !path.isAbsolute(config[key])) {
+        config[key] = path.resolve(appPath, config[key]);
+      }
+    });
+  }
+  return config;
 }
 
 function readJsonFile(path) {

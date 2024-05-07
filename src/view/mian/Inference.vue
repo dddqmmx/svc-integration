@@ -107,11 +107,10 @@
                   <option value="2">SubAudio</option>
                 </select>
                 <select v-model="uvr5Parameters[index-1].uvr5WeightType" @change="onChangeUvr5WeightType(index-1)">
-                  <option v-for="(value,key) in uvr5Models" :key="key">{{key}}</option>
+                  <option v-for="(value,key) in uvr5Models" :key="key" :value="key">{{key}}</option>
                 </select>
                 <select v-if="Object.keys(uvr5Models).length >0 && uvr5Parameters[index-1].uvr5WeightType!=''" v-model="uvr5Parameters[index-1].uvr5Weight">
-                  <option v-for="model in getUvr5Model(uvr5Parameters[index-1].uvr5WeightType)" :key="model">{{model}}</option>
-                  <option v-for="model in getUvr5Model(uvr5Parameters[index-1].uvr5WeightType)" :key="model">{{model}}</option>
+                  <option v-for="model in getUvr5Model(uvr5Parameters[index-1].uvr5WeightType)" :value="model" :key="model">{{model}}</option>
                 </select>
                 <p><input :checked="index===1" v-model="uvr5Parameters[index-1].useForAccompaniment" type="checkbox">把副音频做为伴奏</p>
                 <p v-if="uvr5Parameters[index-1].useForAccompaniment">混音音量: <input type="number" v-model="uvr5Parameters[index-1].volume"></p>
@@ -279,12 +278,13 @@ export default {
       keywords:"",
       songs:{},
       output_list:[],
-      inferenceAudioVolume: 0.8,
+      inferenceAudioVolume: 1.0,
       uvr5Parameters:[
         {
           useForAccompaniment:true,
           volume:0.8,
           uvr5WeightType:"",
+          uvr5Weight:"",
           uvr5Ages:{
             demucs_segment_size:'Default',
             demucs_shifts:2,
@@ -371,6 +371,7 @@ export default {
         volume:0.8,
         uvr5WeightType:"",
         inferenceFile:1,
+        uvr5Weight:"",
         uvr5Ages:{
           demucs_segment_size:'Default',
           demucs_shifts:2,
@@ -494,11 +495,10 @@ export default {
         let uvr5ArgList = [];
         for (let dropFile of this.dropFileList) {
           let uvr5Args = [];
-          for (let uvr5Parameter in this.uvr5Parameters) {
+          for (let uvr5Parameter of this.uvr5Parameters) {
             let args = [];
             args.push(dropFile.path)
-            args.concat(['--model_filename',uvr5Parameter.uvr5WeightType])
-            uvr5Parameter = this.uvr5Parameters[uvr5Parameter]
+            args = args.concat(['--model_filename',uvr5Parameter.uvr5Weight])
             Object.keys(uvr5Parameter.uvr5Ages).forEach(function (key) {
               const value = uvr5Parameter.uvr5Ages[key];
               if (key.startsWith(uvr5Parameter.uvr5WeightType.toLowerCase())){
@@ -509,6 +509,7 @@ export default {
                 }
               }
             });
+            args = args.concat(['--model_file_dir',this.config.workingDirectory + "/tmp/audio-separator-models/"])
             uvr5Args.push({inferenceFile:uvr5Parameter.inferenceFile,args:args});
           }
           uvr5ArgList.push(uvr5Args)
@@ -543,6 +544,12 @@ export default {
           ipcRenderer.off("uvr5-inference-result", uvr5InferenceResult);
          };
         ipcRenderer.on("uvr5-inference-result",uvr5InferenceResult)
+      }else {
+        let fileList = [];
+        for (let i = 0; i < this.dropFileList.length; i++){
+          fileList[i]={name:this.dropFileList[i].name,path:this.dropFileList[i].path}
+        }
+        this.inferenceSVC(fileList);
       }
     },
     inferenceSVC(fileList){
@@ -588,6 +595,7 @@ export default {
           const inferenceResult = (event, filePath, index) => {
             if (filePath == "over") {
               ipcRenderer.off("so-vits-svc-inference", inferenceResult);
+              this.mixerList = []
             }else {
               if (this.vocalAndBackgroundMusicSeparationOption){
                 let outPath = data.config.workingDirectory+'/audio/result/output'+this.outputNumber+'.wav';
